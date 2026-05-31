@@ -9,3 +9,14 @@ export const createDashboardPost = async () => {
     },
   });
 };
+
+export const createMobileDashboardPost = async () => {
+  return await reddit.submitCustomPost({
+    subredditName: context.subredditName,
+    title: 'AppealDesq mobile appeal queue',
+    entry: 'mobile',
+    textFallback: {
+      text: 'AppealDesq mobile queue is a compact Devvit Web view for reviewing structured appeal packets.',
+    },
+  });
+};

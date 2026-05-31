@@ -20,6 +20,8 @@ const userAppealHistoryKey = (subredditId: string, username: string) =>
 const indexKey = (subredditId: string) => `appealdesk:index:${subredditId}`;
 const settingsKey = (subredditId: string) => `appealdesk:settings:${subredditId}`;
 const dashboardPostKey = (subredditId: string) => `appealdesk:dashboard-post:${subredditId}`;
+const mobileDashboardPostKey = (subredditId: string) =>
+  `appealdesk:mobile-dashboard-post:${subredditId}`;
 
 const safeJsonParse = <T>(value: string | undefined): T | undefined => {
   if (!value) {
@@ -84,6 +86,17 @@ export async function getDashboardPostId(subredditId: string = context.subreddit
 
 export async function saveDashboardPostId(postId: string, subredditId: string = context.subredditId) {
   await redis.set(dashboardPostKey(subredditId), postId);
+}
+
+export async function getMobileDashboardPostId(subredditId: string = context.subredditId) {
+  return await redis.get(mobileDashboardPostKey(subredditId));
+}
+
+export async function saveMobileDashboardPostId(
+  postId: string,
+  subredditId: string = context.subredditId
+) {
+  await redis.set(mobileDashboardPostKey(subredditId), postId);
 }
 
 export async function getCaseById(id: string, subredditId: string = context.subredditId) {

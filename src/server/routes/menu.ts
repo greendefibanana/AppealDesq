@@ -1,8 +1,13 @@
 import { Hono } from 'hono';
 import type { UiResponse } from '@devvit/web/shared';
 import { context } from '@devvit/web/server';
-import { createDashboardPost } from '../core/post';
-import { getDashboardPostId, saveDashboardPostId } from '../core/store';
+import { createDashboardPost, createMobileDashboardPost } from '../core/post';
+import {
+  getDashboardPostId,
+  getMobileDashboardPostId,
+  saveDashboardPostId,
+  saveMobileDashboardPostId,
+} from '../core/store';
 
 export const menu = new Hono();
 
@@ -44,6 +49,38 @@ menu.post('/open-dashboard', async (c) => {
     return c.json<UiResponse>(
       {
         showToast: 'Failed to open AppealDesq',
+      },
+      400
+    );
+  }
+});
+
+menu.post('/open-mobile-dashboard', async (c) => {
+  try {
+    const existingPostId = await getMobileDashboardPostId();
+    if (existingPostId) {
+      return c.json<UiResponse>(
+        {
+          navigateTo: dashboardPostUrl(existingPostId),
+        },
+        200
+      );
+    }
+
+    const post = await createMobileDashboardPost();
+    await saveMobileDashboardPostId(post.permalink || post.id);
+
+    return c.json<UiResponse>(
+      {
+        navigateTo: dashboardPostUrl(post.permalink || post.id),
+      },
+      200
+    );
+  } catch (error) {
+    console.error(`Error opening AppealDesq mobile dashboard: ${error}`);
+    return c.json<UiResponse>(
+      {
+        showToast: 'Failed to open mobile AppealDesq',
       },
       400
     );

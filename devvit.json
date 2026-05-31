@@ -7,6 +7,10 @@
       "default": {
         "inline": true,
         "entry": "game.html"
+      },
+      "mobile": {
+        "height": "tall",
+        "entry": "mobile.html"
       }
     }
   },
@@ -28,6 +32,14 @@
         "location": "subreddit",
         "forUserType": "moderator",
         "endpoint": "/internal/menu/open-dashboard",
+        "postFilter": "none"
+      },
+      {
+        "label": "Open Mobile AppealDesq",
+        "description": "Open the mobile-friendly appeal queue",
+        "location": "subreddit",
+        "forUserType": "moderator",
+        "endpoint": "/internal/menu/open-mobile-dashboard",
         "postFilter": "none"
       }
     ]

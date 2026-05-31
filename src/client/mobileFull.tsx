@@ -247,6 +247,8 @@ function createPreviewDashboard(): DashboardData {
       subredditId: 't5_preview',
       subredditName: 'appealdesq_dev',
       username: 'preview_mod',
+      canModerate: true,
+      demoReadOnly: false,
     },
   };
 }
@@ -379,12 +381,14 @@ function CaseCard({
   appealCase,
   busy,
   error,
+  readOnly,
   onAction,
   onConfirmAction,
 }: {
   appealCase: DashboardCase;
   busy: BusyAction;
   error: string | undefined;
+  readOnly: boolean;
   onAction: (id: string, action: AppealAction) => void;
   onConfirmAction: (appealCase: DashboardCase, action: AppealAction) => void;
 }) {
@@ -453,12 +457,17 @@ function CaseCard({
       <UserHistory history={appealCase.userHistory} />
 
       {error ? <div className="mobile-inline-error">{error}</div> : null}
+      {readOnly ? (
+        <div className="mobile-inline-error">
+          Demo read-only mode: production installs require moderator access for actions.
+        </div>
+      ) : null}
 
       <div className="mobile-card-actions">
         <button
           type="button"
           className="mobile-button mobile-button-primary"
-          disabled={disabled}
+          disabled={disabled || readOnly}
           onClick={() => triggerAction(primaryAction)}
           aria-busy={primaryBusy}
         >
@@ -472,7 +481,7 @@ function CaseCard({
                 key={action}
                 type="button"
                 className={isSensitiveAction(action) ? 'mobile-button mobile-button-danger' : 'mobile-button'}
-                disabled={disabled}
+                disabled={disabled || readOnly}
                 onClick={() => triggerAction(action)}
                 aria-busy={actionBusy}
               >
@@ -555,10 +564,12 @@ function FieldError({ message }: { message: string | undefined }) {
 function MobileSettings({
   settings,
   saving,
+  readOnly,
   onSave,
 }: {
   settings: AppealSettings;
   saving: boolean;
+  readOnly: boolean;
   onSave: (settings: AppealSettings) => void;
 }) {
   const [draft, setDraft] = useState<SettingsDraft>({
@@ -593,6 +604,11 @@ function MobileSettings({
         submit();
       }}
     >
+      {readOnly ? (
+        <div className="mobile-banner mobile-banner-error">
+          Public demo mode is read-only. Production installs keep settings moderator-gated.
+        </div>
+      ) : null}
       <section className="mobile-settings-section">
         <h2>Templates</h2>
         <label>
@@ -684,8 +700,8 @@ function MobileSettings({
         </label>
       </section>
 
-      <button type="submit" className="mobile-button mobile-button-primary" disabled={saving}>
-        {saving ? 'Saving...' : 'Save settings'}
+      <button type="submit" className="mobile-button mobile-button-primary" disabled={saving || readOnly}>
+        {readOnly ? 'Read-only demo' : saving ? 'Saving...' : 'Save settings'}
       </button>
     </form>
   );
@@ -870,6 +886,12 @@ export function MobileApp() {
 
       {data ? (
         <>
+          {data.context.demoReadOnly ? (
+            <div className="mobile-banner mobile-banner-success">
+              Public demo mode: judges can view this test dashboard. Production installs are
+              moderator-gated and actions remain disabled for non-mods.
+            </div>
+          ) : null}
           <section className="mobile-stats" aria-label="Appeal queue summary">
             <div className="ready">
               <span>Ready</span>
@@ -919,6 +941,7 @@ export function MobileApp() {
             <MobileSettings
               settings={data.settings}
               saving={savingSettings}
+              readOnly={data.context.demoReadOnly}
               onSave={saveSettings}
             />
           ) : (
@@ -937,6 +960,7 @@ export function MobileApp() {
                     appealCase={appealCase}
                     busy={busyAction}
                     error={caseErrors[appealCase.id]}
+                    readOnly={data.context.demoReadOnly}
                     onAction={runAction}
                     onConfirmAction={(selectedCase, action) =>
                       setPendingAction({ appealCase: selectedCase, action })

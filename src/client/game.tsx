@@ -310,12 +310,14 @@ function CaseCard({
   onRequestConfirm,
   busy,
   error,
+  readOnly,
 }: {
   appealCase: DashboardCase;
   onAction: (id: string, action: AppealAction) => void;
   onRequestConfirm: (appealCase: AppealCase, action: AppealAction) => void;
   busy: BusyAction;
   error: string | undefined;
+  readOnly: boolean;
 }) {
   const primaryAction = getPrimaryAction(appealCase);
   const secondaryActions = getSecondaryActions(appealCase);
@@ -380,11 +382,17 @@ function CaseCard({
 
       {error ? <div className="case-error">{error}</div> : null}
 
+      {readOnly ? (
+        <div className="case-error">
+          Demo read-only mode: production installs require moderator access for actions.
+        </div>
+      ) : null}
+
       <div className="actions">
         <button
           type="button"
           className="button primary"
-          disabled={Boolean(busy)}
+          disabled={Boolean(busy) || readOnly}
           onClick={() => onAction(appealCase.id, primaryAction)}
           aria-busy={primaryBusy}
         >
@@ -398,7 +406,7 @@ function CaseCard({
                 key={action}
                 type="button"
                 className={isSensitiveAction(action) ? 'button compact danger' : 'button compact'}
-                disabled={Boolean(busy)}
+                disabled={Boolean(busy) || readOnly}
                 onClick={() =>
                   isSensitiveAction(action)
                     ? onRequestConfirm(appealCase, action)
@@ -544,10 +552,12 @@ function SettingsPanel({
   settings,
   onSave,
   saving,
+  readOnly,
 }: {
   settings: AppealSettings;
   onSave: (settings: AppealSettings) => void;
   saving: boolean;
+  readOnly: boolean;
 }) {
   const [draft, setDraft] = useState<SettingsDraft>({
     ...settings,
@@ -582,6 +592,11 @@ function SettingsPanel({
         submitSettings();
       }}
     >
+      {readOnly ? (
+        <div className="banner error">
+          Public demo mode is read-only. Production installs keep settings moderator-gated.
+        </div>
+      ) : null}
       <section className="settings-section">
         <div className="settings-section-heading">
           <p className="eyebrow">Templates</p>
@@ -679,8 +694,13 @@ function SettingsPanel({
 
       <div className="settings-footer">
         <span>Settings are stored per subreddit in Devvit Redis.</span>
-        <button type="submit" className="button primary" disabled={saving} aria-busy={saving}>
-          {saving ? 'Saving...' : 'Save settings'}
+        <button
+          type="submit"
+          className="button primary"
+          disabled={saving || readOnly}
+          aria-busy={saving}
+        >
+          {readOnly ? 'Read-only demo' : saving ? 'Saving...' : 'Save settings'}
         </button>
       </div>
     </form>
@@ -840,6 +860,12 @@ export const App = () => {
 
       {data ? (
         <>
+          {data.context.demoReadOnly ? (
+            <div className="banner success">
+              Public demo mode: judges can view this test dashboard. Production installs are
+              moderator-gated and actions remain disabled for non-mods.
+            </div>
+          ) : null}
           <section className="stats-row">
             <StatCard label="Ready for review" value={data.stats.ready_for_review} tone="ready" />
             <StatCard label="Awaiting user" value={data.stats.awaiting_user} tone="waiting" />
@@ -879,6 +905,7 @@ export const App = () => {
                 settings={data.settings}
                 onSave={saveSettings}
                 saving={savingSettings}
+                readOnly={data.context.demoReadOnly}
               />
             ) : (
               <>
@@ -897,6 +924,7 @@ export const App = () => {
                         appealCase={appealCase}
                         busy={busyAction}
                         error={caseErrors[appealCase.id]}
+                        readOnly={data.context.demoReadOnly}
                         onAction={runAction}
                         onRequestConfirm={(selectedCase, action) =>
                           setPendingAction({ appealCase: selectedCase, action })

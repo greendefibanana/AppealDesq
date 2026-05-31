@@ -37,11 +37,20 @@ const t = initTRPC.context<Context>().create({
 export const router = t.router;
 export const publicProcedure = t.procedure;
 
-async function assertCurrentUserIsModerator() {
+const DEMO_SUBREDDIT_NAME = 'appealdesq_dev';
+
+function isDemoSubreddit() {
+  return context.subredditName.toLowerCase() === DEMO_SUBREDDIT_NAME;
+}
+
+async function isCurrentUserModerator() {
   const user = await reddit.getCurrentUser();
   const permissions = user ? await user.getModPermissionsForSubreddit(context.subredditName) : [];
+  return Boolean(user && permissions.length > 0);
+}
 
-  if (!user || permissions.length === 0) {
+async function assertCurrentUserIsModerator() {
+  if (!(await isCurrentUserModerator())) {
     throw new TRPCError({
       code: 'FORBIDDEN',
       message: 'AppealDesq is only available to moderators of this subreddit.',
@@ -88,7 +97,16 @@ export const appRouter = t.router({
     }),
   }),
   appeals: t.router({
-    dashboard: moderatorProcedure.query(async () => {
+    dashboard: publicProcedure.query(async () => {
+      const canModerate = await isCurrentUserModerator();
+      const demoReadOnly = !canModerate && isDemoSubreddit();
+      if (!canModerate && !demoReadOnly) {
+        throw new TRPCError({
+          code: 'FORBIDDEN',
+          message: 'AppealDesq is only available to moderators of this subreddit.',
+        });
+      }
+
       const [cases, settings] = await Promise.all([listCases(), getSettings()]);
       const stats = cases.reduce(
         (totals, appealCase) => {
@@ -122,6 +140,8 @@ export const appRouter = t.router({
           subredditId: context.subredditId,
           subredditName: context.subredditName,
           username: context.username,
+          canModerate,
+          demoReadOnly,
         },
       };
     }),

@@ -37,6 +37,7 @@ export function MobileLauncher() {
   const [subredditName, setSubredditName] = useState('appealdesq_dev');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [demoReadOnly, setDemoReadOnly] = useState(false);
 
   const refresh = async () => {
     setLoading(true);
@@ -45,6 +46,7 @@ export function MobileLauncher() {
       const dashboard = await trpc.appeals.dashboard.query();
       setStats(dashboard.stats);
       setSubredditName(dashboard.context.subredditName);
+      setDemoReadOnly(dashboard.context.demoReadOnly);
     } catch (err) {
       if (isLocalPreview()) {
         setStats(previewStats);
@@ -123,7 +125,9 @@ export function MobileLauncher() {
       </div>
 
       <p className="mobile-launcher-note">
-        Opens in expanded mode for scrolling. Human mod approval is required for enforcement actions.
+        {demoReadOnly
+          ? 'Public demo mode: this test subreddit is viewable by judges. Production installs are moderator-gated.'
+          : 'Opens in expanded mode for scrolling. Human mod approval is required for enforcement actions.'}
       </p>
     </main>
   );

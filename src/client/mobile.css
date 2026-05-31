@@ -52,6 +52,117 @@ textarea:focus-visible {
   outline-offset: 2px;
 }
 
+.mobile-launcher {
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  max-width: 390px;
+  margin: 0 auto;
+  gap: 12px;
+  padding: 14px;
+  overflow: hidden;
+  border: 1px solid var(--mobile-border-soft);
+  border-radius: 14px;
+  background:
+    linear-gradient(180deg, rgba(0, 121, 211, 0.12), transparent 180px),
+    var(--mobile-bg);
+  color: var(--mobile-text);
+}
+
+.mobile-launcher-head {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 10px;
+}
+
+.mobile-launcher-head img {
+  width: 44px;
+  height: 44px;
+  flex: 0 0 44px;
+  border-radius: 8px;
+  background: #fff;
+  object-fit: cover;
+}
+
+.mobile-launcher-head div {
+  min-width: 0;
+}
+
+.mobile-launcher-head h1,
+.mobile-launcher-head p {
+  margin: 0;
+}
+
+.mobile-launcher-head h1 {
+  overflow: hidden;
+  color: var(--mobile-text);
+  font-size: 24px;
+  line-height: 1.05;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mobile-launcher-head p {
+  color: var(--mobile-muted);
+  font-size: 13px;
+}
+
+.mobile-launcher-head span {
+  display: inline-flex;
+  margin-top: 3px;
+  color: var(--mobile-blue);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+}
+
+.mobile-launcher-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.mobile-launcher-stats div {
+  min-width: 0;
+  border: 1px solid var(--mobile-border-soft);
+  border-radius: 8px;
+  background: var(--mobile-panel);
+  padding: 8px 6px;
+}
+
+.mobile-launcher-stats span {
+  display: block;
+  overflow: hidden;
+  color: var(--mobile-muted);
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.mobile-launcher-stats strong {
+  display: block;
+  margin-top: 4px;
+  color: var(--mobile-text);
+  font-size: 22px;
+  line-height: 1;
+}
+
+.mobile-launcher-actions {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+}
+
+.mobile-launcher-note {
+  margin: 0;
+  color: var(--mobile-muted);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
 .mobile-shell {
   width: 100%;
   max-width: 390px;

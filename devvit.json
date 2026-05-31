@@ -9,8 +9,13 @@
         "entry": "game.html"
       },
       "mobile": {
-        "height": "tall",
+        "inline": true,
+        "height": "regular",
         "entry": "mobile.html"
+      },
+      "mobileFull": {
+        "height": "tall",
+        "entry": "mobile-full.html"
       }
     }
   },

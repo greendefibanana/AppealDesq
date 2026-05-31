@@ -23,20 +23,34 @@ const previewStats: DashboardData['stats'] = {
   archived: 0,
 };
 
+const emptyStats: DashboardData['stats'] = {
+  ready_for_review: 0,
+  awaiting_user: 0,
+  incomplete: 0,
+  low_effort: 0,
+  resolved: 0,
+  archived: 0,
+};
+
 export function MobileLauncher() {
   const [stats, setStats] = useState<DashboardData['stats'] | null>(null);
   const [subredditName, setSubredditName] = useState('appealdesq_dev');
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const refresh = async () => {
     setLoading(true);
+    setError(null);
     try {
       const dashboard = await trpc.appeals.dashboard.query();
       setStats(dashboard.stats);
       setSubredditName(dashboard.context.subredditName);
-    } catch {
+    } catch (err) {
       if (isLocalPreview()) {
         setStats(previewStats);
+      } else {
+        setStats(null);
+        setError(err instanceof Error ? err.message : 'Unable to load AppealDesq mobile queue.');
       }
     } finally {
       setLoading(false);
@@ -48,7 +62,7 @@ export function MobileLauncher() {
     void refresh();
   }, []);
 
-  const currentStats = stats ?? previewStats;
+  const currentStats = stats ?? emptyStats;
 
   return (
     <main className="mobile-launcher">
@@ -60,6 +74,15 @@ export function MobileLauncher() {
           <span>r/{subredditName}</span>
         </div>
       </header>
+
+      {error ? (
+        <div className="mobile-launcher-error">
+          <span>{error}</span>
+          <button type="button" onClick={() => void refresh()}>
+            Retry
+          </button>
+        </div>
+      ) : null}
 
       <section className="mobile-launcher-stats" aria-label="Appeal queue summary">
         <div>

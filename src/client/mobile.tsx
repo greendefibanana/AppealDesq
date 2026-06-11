@@ -17,6 +17,7 @@ const isLocalPreview = () =>
 const previewStats: DashboardData['stats'] = {
   ready_for_review: 1,
   awaiting_user: 1,
+  paused_muted: 0,
   incomplete: 1,
   low_effort: 2,
   resolved: 2,
@@ -26,6 +27,7 @@ const previewStats: DashboardData['stats'] = {
 const emptyStats: DashboardData['stats'] = {
   ready_for_review: 0,
   awaiting_user: 0,
+  paused_muted: 0,
   incomplete: 0,
   low_effort: 0,
   resolved: 0,
@@ -94,6 +96,10 @@ export function MobileLauncher() {
         <div>
           <span>Waiting</span>
           <strong>{currentStats.awaiting_user}</strong>
+        </div>
+        <div className="paused">
+          <span>Paused</span>
+          <strong>{currentStats.paused_muted}</strong>
         </div>
         <div>
           <span>Incomplete</span>

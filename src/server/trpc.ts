@@ -5,12 +5,9 @@ import { context, reddit } from '@devvit/web/server';
 import { z } from 'zod';
 import {
   DEFAULT_SETTINGS,
-  detectLowEffort,
-  getMissingFields,
+  analyzeAppeal,
   isAppealLikeMessage,
-  scoreAppeal,
-  statusFromAppealText,
-  summarizeAppeal,
+  missingFieldsForScore,
   type AppealSettings,
 } from '../shared/appeals';
 import {
@@ -115,6 +112,7 @@ export const appRouter = t.router({
         },
         {
           awaiting_user: 0,
+          paused_muted: 0,
           ready_for_review: 0,
           incomplete: 0,
           low_effort: 0,
@@ -124,12 +122,17 @@ export const appRouter = t.router({
       );
 
       const casesWithHistory = await Promise.all(
-        cases.map(async (appealCase) => ({
-          ...appealCase,
-          userHistory: appealCase.userName
-            ? await getUserAppealHistory(appealCase.subredditId, appealCase.userName)
-            : undefined,
-        }))
+        cases.map(async (appealCase) => {
+          const missingFields = missingFieldsForScore(appealCase.score, appealCase.missingFields);
+
+          return {
+            ...appealCase,
+            missingFields,
+            userHistory: appealCase.userName
+              ? await getUserAppealHistory(appealCase.subredditId, appealCase.userName)
+              : undefined,
+          };
+        })
       );
 
       return {
@@ -173,13 +176,12 @@ export const appRouter = t.router({
   }),
   parser: t.router({
     inspect: publicProcedure.input(z.string()).query(({ input }) => {
+      const analysis = analyzeAppeal(input);
+
       return {
         appealLike: isAppealLikeMessage(input),
-        score: scoreAppeal(input),
-        lowEffort: detectLowEffort(input),
-        missingFields: getMissingFields(input),
-        status: statusFromAppealText(input),
-        summary: summarizeAppeal(input),
+        ...analysis,
+        lowEffort: analysis.isLowEffort,
       };
     }),
   }),

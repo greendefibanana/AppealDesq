@@ -300,6 +300,10 @@ button {
   border-top-color: var(--waiting);
 }
 
+.stat-paused {
+  border-top-color: var(--resolved);
+}
+
 .stat-incomplete {
   border-top-color: var(--incomplete);
 }
@@ -504,6 +508,10 @@ button {
   background: var(--waiting);
 }
 
+.case-card.status-paused_muted::before {
+  background: var(--resolved);
+}
+
 .case-card.status-incomplete::before {
   background: var(--incomplete);
 }
@@ -555,6 +563,11 @@ button {
 .chip-waiting {
   background: color-mix(in srgb, var(--waiting) 14%, var(--panel));
   color: var(--waiting);
+}
+
+.chip-paused {
+  background: var(--panel-strong);
+  color: var(--muted-strong);
 }
 
 .chip-incomplete {

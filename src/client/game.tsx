@@ -16,7 +16,7 @@ import { trpc } from './trpc';
 
 type DashboardData = inferRouterOutputs<AppRouter>['appeals']['dashboard'];
 type DashboardCase = DashboardData['cases'][number];
-type Tab = 'ready' | 'waiting' | 'incomplete' | 'low_effort' | 'resolved' | 'settings';
+type Tab = 'ready' | 'waiting' | 'paused' | 'incomplete' | 'low_effort' | 'resolved' | 'settings';
 type Theme = 'light' | 'dark';
 type AppealAction =
   | 'ask_followup'
@@ -43,6 +43,7 @@ type SettingsDraft = AppealSettings & {
 const TABS: Array<{ id: Tab; label: string; statuses?: AppealStatus[] }> = [
   { id: 'ready', label: 'Ready', statuses: ['ready_for_review'] },
   { id: 'waiting', label: 'Waiting', statuses: ['awaiting_user'] },
+  { id: 'paused', label: 'Paused', statuses: ['paused_muted'] },
   { id: 'incomplete', label: 'Incomplete', statuses: ['incomplete'] },
   { id: 'low_effort', label: 'Low effort', statuses: ['low_effort'] },
   { id: 'resolved', label: 'Resolved', statuses: ['resolved', 'archived'] },
@@ -51,6 +52,7 @@ const TABS: Array<{ id: Tab; label: string; statuses?: AppealStatus[] }> = [
 
 const statusLabel: Record<AppealStatus, string> = {
   awaiting_user: 'Awaiting user',
+  paused_muted: 'Appeal paused: user may be muted',
   ready_for_review: 'Ready for review',
   incomplete: 'Incomplete',
   low_effort: 'Low effort',
@@ -60,6 +62,7 @@ const statusLabel: Record<AppealStatus, string> = {
 
 const statusClass: Record<AppealStatus, string> = {
   awaiting_user: 'chip chip-waiting',
+  paused_muted: 'chip chip-paused',
   ready_for_review: 'chip chip-ready',
   incomplete: 'chip chip-incomplete',
   low_effort: 'chip chip-low',
@@ -107,6 +110,10 @@ const tabCopy: Record<Exclude<Tab, 'settings'>, { title: string; description: st
   incomplete: {
     title: 'Needs follow-up',
     description: 'Missing fields that usually matter for a fair appeal review.',
+  },
+  paused: {
+    title: 'Paused',
+    description: 'Users who may be muted or unable to reply. Wait for the mute to expire or review manually.',
   },
   low_effort: {
     title: 'Low-effort or abusive',
@@ -160,6 +167,7 @@ function getSecondaryActions(appealCase: AppealCase): AppealAction[] {
 }
 
 function getCasePriority(appealCase: AppealCase) {
+  if (appealCase.status === 'paused_muted') return 'Paused';
   if (appealCase.status === 'low_effort') return 'Sensitive';
   if (appealCase.status === 'ready_for_review') return 'Decision-ready';
   if (appealCase.status === 'incomplete') return 'Needs info';
@@ -219,7 +227,7 @@ function StatCard({
 }: {
   label: string;
   value: number;
-  tone: 'ready' | 'waiting' | 'incomplete' | 'low' | 'resolved';
+  tone: 'ready' | 'waiting' | 'paused' | 'incomplete' | 'low' | 'resolved';
 }) {
   return (
     <div className={`stat-card stat-${tone}`}>
@@ -869,6 +877,7 @@ export const App = () => {
           <section className="stats-row">
             <StatCard label="Ready for review" value={data.stats.ready_for_review} tone="ready" />
             <StatCard label="Awaiting user" value={data.stats.awaiting_user} tone="waiting" />
+            <StatCard label="Paused" value={data.stats.paused_muted} tone="paused" />
             <StatCard label="Incomplete" value={data.stats.incomplete} tone="incomplete" />
             <StatCard label="Low effort" value={data.stats.low_effort} tone="low" />
             <StatCard

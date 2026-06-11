@@ -118,7 +118,7 @@ textarea:focus-visible {
 
 .mobile-launcher-stats {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 6px;
 }
 
@@ -374,6 +374,10 @@ textarea:focus-visible {
   border-top-color: var(--mobile-green);
 }
 
+.mobile-stats .paused {
+  border-top-color: var(--mobile-muted);
+}
+
 .mobile-stats .incomplete {
   border-top-color: var(--mobile-yellow);
 }
@@ -542,6 +546,10 @@ textarea:focus-visible {
 
 .status-awaiting_user {
   color: #b8c7dc;
+}
+
+.status-paused_muted {
+  color: var(--mobile-muted);
 }
 
 .status-incomplete,

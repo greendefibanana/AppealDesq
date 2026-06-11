@@ -20,6 +20,7 @@ type DashboardCase = DashboardData['cases'][number];
 type MobileTab =
   | 'ready'
   | 'waiting'
+  | 'paused'
   | 'incomplete'
   | 'low_effort'
   | 'resolved'
@@ -53,6 +54,7 @@ type SettingsErrors = Partial<
 const tabs: Array<{ id: MobileTab; label: string; statuses?: AppealStatus[] }> = [
   { id: 'ready', label: 'Ready', statuses: ['ready_for_review'] },
   { id: 'waiting', label: 'Waiting', statuses: ['awaiting_user'] },
+  { id: 'paused', label: 'Paused', statuses: ['paused_muted'] },
   { id: 'incomplete', label: 'Incomplete', statuses: ['incomplete'] },
   { id: 'low_effort', label: 'Low effort', statuses: ['low_effort'] },
   { id: 'resolved', label: 'Resolved', statuses: ['resolved'] },
@@ -62,6 +64,7 @@ const tabs: Array<{ id: MobileTab; label: string; statuses?: AppealStatus[] }> =
 
 const statusLabel: Record<AppealStatus, string> = {
   awaiting_user: 'Awaiting user',
+  paused_muted: 'Appeal paused: user may be muted',
   ready_for_review: 'Ready for review',
   incomplete: 'Incomplete',
   low_effort: 'Low effort',
@@ -131,6 +134,38 @@ function createPreviewDashboard(): DashboardData {
         firstAppealAt: now - 1000 * 60 * 60 * 24 * 12,
         lastAppealAt: now - 1000 * 60 * 24,
         suggestedPattern: 'Good-faith history',
+      },
+    },
+    {
+      id: 'preview-paused',
+      subredditId: 't5_preview',
+      subredditName: 'appealdesq_dev',
+      conversationId: 'ModmailConversation_paused_1',
+      userName: 'MutedMember',
+      subject: 'Ban appeal',
+      status: 'paused_muted',
+      score: 1,
+      missingFields: [
+        'Post/comment link, or clear statement that no link applies',
+        'Rule or misunderstanding explanation',
+        'What the user would do differently next time',
+        'Reason the mod team should reconsider',
+      ],
+      summary: 'Appeal paused: user may be muted. User is currently muted in modmail.',
+      lastMessagePreview: 'why was i banned',
+      followupCount: 0,
+      createdAt: now - 1000 * 60 * 35,
+      updatedAt: now - 1000 * 60 * 12,
+      userHistory: {
+        totalAppeals: 1,
+        readyAppeals: 0,
+        incompleteAppeals: 0,
+        lowEffortAppeals: 0,
+        resolvedAppeals: 0,
+        archivedAppeals: 0,
+        firstAppealAt: now - 1000 * 60 * 35,
+        lastAppealAt: now - 1000 * 60 * 12,
+        suggestedPattern: 'First appeal',
       },
     },
     {
@@ -236,6 +271,7 @@ function createPreviewDashboard(): DashboardData {
     cases,
     stats: {
       awaiting_user: cases.filter((appealCase) => appealCase.status === 'awaiting_user').length,
+      paused_muted: cases.filter((appealCase) => appealCase.status === 'paused_muted').length,
       ready_for_review: cases.filter((appealCase) => appealCase.status === 'ready_for_review').length,
       incomplete: cases.filter((appealCase) => appealCase.status === 'incomplete').length,
       low_effort: cases.filter((appealCase) => appealCase.status === 'low_effort').length,
@@ -275,6 +311,9 @@ function isSensitiveAction(action: AppealAction) {
 }
 
 function getPrimaryAction(appealCase: AppealCase): AppealAction {
+  if (appealCase.status === 'paused_muted') {
+    return 'mark_resolved';
+  }
   if (appealCase.status === 'awaiting_user' || appealCase.status === 'incomplete') {
     return 'ask_followup';
   }
@@ -795,6 +834,7 @@ export function MobileApp() {
           cases: nextCases,
           stats: {
             awaiting_user: nextCases.filter((appealCase) => appealCase.status === 'awaiting_user').length,
+            paused_muted: nextCases.filter((appealCase) => appealCase.status === 'paused_muted').length,
             ready_for_review: nextCases.filter((appealCase) => appealCase.status === 'ready_for_review').length,
             incomplete: nextCases.filter((appealCase) => appealCase.status === 'incomplete').length,
             low_effort: nextCases.filter((appealCase) => appealCase.status === 'low_effort').length,
@@ -900,6 +940,10 @@ export function MobileApp() {
             <div>
               <span>Waiting</span>
               <strong>{data.stats.awaiting_user}</strong>
+            </div>
+            <div className="paused">
+              <span>Paused</span>
+              <strong>{data.stats.paused_muted}</strong>
             </div>
             <div className="incomplete">
               <span>Incomplete</span>

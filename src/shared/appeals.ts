@@ -1,5 +1,6 @@
 export type AppealStatus =
   | 'awaiting_user'
+  | 'paused_muted'
   | 'ready_for_review'
   | 'incomplete'
   | 'low_effort'
@@ -64,6 +65,16 @@ export type AppealScore = {
   };
 };
 
+export type AppealAnalysisStatus = 'awaiting_user' | 'ready_for_review' | 'incomplete' | 'low_effort';
+
+export type AppealAnalysis = {
+  score: number;
+  missingFields: string[];
+  status: AppealAnalysisStatus;
+  isLowEffort: boolean;
+  summary: string;
+};
+
 export const APPEAL_TEMPLATE = `Hi — this looks like an appeal or moderation dispute.
 
 To help the mod team review it fairly, please reply with:
@@ -115,11 +126,15 @@ export const DEFAULT_SETTINGS: AppealSettings = {
 
 export const MISSING_FIELD_LABELS = {
   action: 'Action being appealed',
-  link: 'Post/comment link or confirmation that no link applies',
+  link: 'Post/comment link, or clear statement that no link applies',
   rule: 'Rule or misunderstanding explanation',
-  nextTime: 'What would change next time',
-  reconsideration: 'Reason for reconsideration',
+  nextTime: 'What the user would do differently next time',
+  reconsideration: 'Reason the mod team should reconsider',
 } as const;
+
+const REQUIRED_FIELD_KEYS = ['action', 'link', 'rule', 'nextTime', 'reconsideration'] as const;
+
+export const REQUIRED_APPEAL_FIELDS = REQUIRED_FIELD_KEYS.map((field) => MISSING_FIELD_LABELS[field]);
 
 const APPEAL_PATTERNS = [
   /\bappeal(?:ing)?\b/i,
@@ -178,16 +193,13 @@ export function scoreAppeal(text: string): AppealScore {
   };
 
   return {
-    score: Object.values(fields).filter(Boolean).length,
+    score: REQUIRED_FIELD_KEYS.filter((field) => fields[field]).length,
     fields,
   };
 }
 
 export function getMissingFields(text: string): string[] {
-  const { fields } = scoreAppeal(text);
-  return Object.entries(fields)
-    .filter(([, present]) => !present)
-    .map(([field]) => MISSING_FIELD_LABELS[field as keyof typeof MISSING_FIELD_LABELS]);
+  return analyzeAppeal(text).missingFields;
 }
 
 export function getLowEffortReasons(
@@ -234,12 +246,58 @@ export function summarizeAppeal(text: string): string {
 export function statusFromAppealText(
   text: string,
   keywords: string[] = DEFAULT_LOW_EFFORT_KEYWORDS
-): AppealStatus {
-  if (detectLowEffort(text, keywords)) {
-    return 'low_effort';
+): AppealAnalysisStatus {
+  return analyzeAppeal(text, keywords).status;
+}
+
+export function analyzeAppeal(
+  text: string,
+  keywords: string[] = DEFAULT_LOW_EFFORT_KEYWORDS
+): AppealAnalysis {
+  const { score, fields } = scoreAppeal(text);
+  const isLowEffort = detectLowEffort(text, keywords);
+  const detectedMissingFields = REQUIRED_FIELD_KEYS.filter((field) => !fields[field]).map(
+    (field) => MISSING_FIELD_LABELS[field]
+  );
+  const missingFields =
+    score < REQUIRED_FIELD_KEYS.length && detectedMissingFields.length === 0
+      ? REQUIRED_APPEAL_FIELDS
+      : detectedMissingFields;
+  const status = isLowEffort
+    ? 'low_effort'
+    : score === REQUIRED_FIELD_KEYS.length
+      ? 'ready_for_review'
+      : score === 0
+        ? 'awaiting_user'
+        : 'incomplete';
+
+  return {
+    score,
+    missingFields,
+    status,
+    isLowEffort,
+    summary: summarizeAppeal(text),
+  };
+}
+
+export function missingFieldsForScore(score: number, missingFields: string[]): string[] {
+  if (score >= REQUIRED_FIELD_KEYS.length) {
+    return [];
   }
 
-  return scoreAppeal(text).score >= 4 ? 'ready_for_review' : 'incomplete';
+  return missingFields.length > 0 ? missingFields : REQUIRED_APPEAL_FIELDS;
+}
+
+export function formatMissingFieldsForScore(score: number, missingFields: string[]): string {
+  return formatMissingFields(missingFieldsForScore(score, missingFields));
+}
+
+export function applyMissingFieldsToTemplate(
+  template: string,
+  score: number,
+  missingFields: string[]
+): string {
+  return template.replace('{{missing_fields}}', formatMissingFieldsForScore(score, missingFields));
 }
 
 export function previewText(text: string, maxLength = 180): string {
@@ -249,7 +307,7 @@ export function previewText(text: string, maxLength = 180): string {
 
 export function formatMissingFields(missingFields: string[]): string {
   if (missingFields.length === 0) {
-    return 'No required fields are missing.';
+    return '- No required fields are missing.';
   }
 
   return missingFields.map((field) => `- ${field}`).join('\n');

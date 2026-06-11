@@ -1,19 +1,18 @@
 import { reddit } from '@devvit/web/server';
 import type { OnModMailRequest } from '@devvit/web/shared';
-import type { ConversationData, MessageData } from '@devvit/web/server';
+import type { ConversationData, ConversationUserData, MessageData } from '@devvit/web/server';
 
 import {
   LOW_EFFORT_INTERNAL_NOTE,
+  analyzeAppeal,
+  applyMissingFieldsToTemplate,
   detectLowEffort,
-  formatMissingFields,
+  formatMissingFieldsForScore,
   getLowEffortReasons,
-  getMissingFields,
   isAppealLikeMessage,
   isJoinRequestWithoutAppeal,
+  missingFieldsForScore,
   previewText,
-  scoreAppeal,
-  statusFromAppealText,
-  summarizeAppeal,
   type AppealCase,
 } from '../../shared/appeals';
 import {
@@ -63,10 +62,33 @@ function inferUserName(conversation: ConversationData, message?: MessageData, us
   return userName || conversation.participant?.name || message?.author?.name;
 }
 
+function getPauseReason(conversation: ConversationData, user?: ConversationUserData) {
+  if (user?.muteStatus?.isMuted) {
+    return 'User is currently muted in modmail.';
+  }
+
+  if ('isRepliable' in conversation && conversation.isRepliable === false) {
+    return 'Modmail conversation is not currently repliable.';
+  }
+
+  return undefined;
+}
+
+function isClosedStatus(status: AppealCase['status']) {
+  return status === 'resolved' || status === 'archived';
+}
+
 export function buildInternalNote(appealCase: AppealCase, lowEffortReasons: string[] = []) {
+  const missingFields = missingFieldsForScore(appealCase.score, appealCase.missingFields);
+  const missingFieldsBlock =
+    missingFields.length > 0
+      ? `\n${formatMissingFieldsForScore(appealCase.score, appealCase.missingFields)}`
+      : ' None';
   const recommendation =
     appealCase.status === 'ready_for_review'
       ? 'Review packet is complete enough for a moderator decision.'
+      : appealCase.status === 'paused_muted'
+        ? 'Wait for mute to expire or review manually.'
       : appealCase.status === 'low_effort'
         ? 'Do not take automatic enforcement. Human moderator should review if needed.'
         : 'Ask for the missing fields before spending review time.';
@@ -76,7 +98,7 @@ export function buildInternalNote(appealCase: AppealCase, lowEffortReasons: stri
 
   return `AppealDesq status: ${appealCase.status}
 Completeness score: ${appealCase.score}/5
-Missing fields: ${appealCase.missingFields.length ? appealCase.missingFields.join('; ') : 'None'}
+Missing fields:${missingFieldsBlock}
 Extracted summary: ${appealCase.summary}${lowEffortLine}
 Recommended next action: ${recommendation}`;
 }
@@ -108,6 +130,7 @@ export async function handleModmailEvent(input: OnModMailRequest) {
   const latestBody = bodyOf(latestUserMessage);
   const subject = conversation.subject ?? 'Modmail conversation';
   const combinedTriggerText = `${subject}\n${latestBody}`;
+  const pauseReason = getPauseReason(conversation, data.user);
 
   if (!existing && isJoinRequestWithoutAppeal(subject, latestBody)) {
     return {
@@ -127,6 +150,7 @@ export async function handleModmailEvent(input: OnModMailRequest) {
   const { subredditId, subredditName } = getCurrentSubreddit();
 
   if (!existing) {
+    const analysis = analyzeAppeal(latestBody, settings.lowEffortKeywords);
     const appealCase: AppealCase = {
       id: createCaseId(conversationId, now),
       subredditId,
@@ -134,10 +158,12 @@ export async function handleModmailEvent(input: OnModMailRequest) {
       conversationId,
       userName: inferUserName(conversation, latestUserMessage, data.user?.name),
       subject,
-      status: 'awaiting_user',
-      score: 0,
-      missingFields: [],
-      summary: 'Appeal template sent. Waiting for structured details.',
+      status: pauseReason ? 'paused_muted' : analysis.status,
+      score: analysis.score,
+      missingFields: missingFieldsForScore(analysis.score, analysis.missingFields),
+      summary: pauseReason
+        ? `Appeal paused: user may be muted. ${pauseReason}`
+        : 'Appeal template sent. Waiting for structured details.',
       lastMessagePreview: previewText(latestBody || subject),
       followupCount: 0,
       createdAt: now,
@@ -145,7 +171,9 @@ export async function handleModmailEvent(input: OnModMailRequest) {
     };
 
     await saveCase(appealCase, settings);
-    await replyToConversation(conversationId, settings.appealTemplate);
+    if (!pauseReason) {
+      await replyToConversation(conversationId, settings.appealTemplate);
+    }
     await replyToConversation(conversationId, buildInternalNote(appealCase), true);
 
     return {
@@ -156,6 +184,28 @@ export async function handleModmailEvent(input: OnModMailRequest) {
   }
 
   const latestPreview = previewText(latestBody || subject);
+  if (pauseReason && !isClosedStatus(existing.status)) {
+    const analysis = analyzeAppeal(latestBody, settings.lowEffortKeywords);
+    const paused: AppealCase = {
+      ...existing,
+      status: 'paused_muted',
+      score: analysis.score,
+      missingFields: missingFieldsForScore(analysis.score, analysis.missingFields),
+      summary: `Appeal paused: user may be muted. ${pauseReason}`,
+      lastMessagePreview: latestPreview,
+      updatedAt: now,
+    };
+
+    await saveCase(paused, settings);
+    await replyToConversation(conversationId, buildInternalNote(paused), true);
+
+    return {
+      status: 'updated',
+      case: paused,
+      message: `AppealDesq paused case ${paused.id} because the user may be muted.`,
+    };
+  }
+
   if (!latestBody || latestPreview === existing.lastMessagePreview) {
     return {
       status: 'unchanged',
@@ -164,16 +214,14 @@ export async function handleModmailEvent(input: OnModMailRequest) {
     };
   }
 
-  const score = scoreAppeal(latestBody).score;
-  const missingFields = getMissingFields(latestBody);
-  const status = statusFromAppealText(latestBody, settings.lowEffortKeywords);
+  const analysis = analyzeAppeal(latestBody, settings.lowEffortKeywords);
   const lowEffortReasons = getLowEffortReasons(latestBody, settings.lowEffortKeywords);
   const updated: AppealCase = {
     ...existing,
-    status,
-    score,
-    missingFields,
-    summary: summarizeAppeal(latestBody),
+    status: analysis.status,
+    score: analysis.score,
+    missingFields: analysis.missingFields,
+    summary: analysis.summary,
     lastMessagePreview: latestPreview,
     updatedAt: now,
   };
@@ -181,7 +229,7 @@ export async function handleModmailEvent(input: OnModMailRequest) {
   await saveCase(updated, settings);
   await replyToConversation(conversationId, buildInternalNote(updated, lowEffortReasons), true);
 
-  if (status === 'low_effort') {
+  if (analysis.status === 'low_effort') {
     await replyToConversation(conversationId, LOW_EFFORT_INTERNAL_NOTE, true);
   }
 
@@ -202,6 +250,35 @@ export async function runAppealAction(id: string, action: AppealAction): Promise
 
   try {
     if (action === 'ask_followup') {
+      const data = await reddit.modMail.getConversation({
+        conversationId: existing.conversationId,
+        markRead: false,
+      });
+      if (data.conversation) {
+        const pauseReason = getPauseReason(data.conversation, data.user);
+        if (pauseReason) {
+          const latestUserMessage = getLatestUserMessage(data.conversation);
+          const latestBody = bodyOf(latestUserMessage);
+          const analysis = analyzeAppeal(latestBody, settings.lowEffortKeywords);
+          const paused: AppealCase = {
+            ...existing,
+            status: 'paused_muted',
+            score: analysis.score,
+            missingFields: missingFieldsForScore(analysis.score, analysis.missingFields),
+            summary: `Appeal paused: user may be muted. ${pauseReason}`,
+            lastMessagePreview: previewText(latestBody || existing.lastMessagePreview),
+            updatedAt: Date.now(),
+          };
+
+          return {
+            ok: false,
+            case: await saveCase(paused, settings),
+            message: 'Follow-up disabled. Appeal paused: user may be muted.',
+            usedFallback: false,
+          };
+        }
+      }
+
       if (existing.followupCount >= settings.maxFollowups) {
         return {
           ok: false,
@@ -211,17 +288,25 @@ export async function runAppealAction(id: string, action: AppealAction): Promise
         };
       }
 
+      const latestUserMessage = data.conversation
+        ? getLatestUserMessage(data.conversation)
+        : undefined;
+      const latestBody = bodyOf(latestUserMessage);
+      const analysis = analyzeAppeal(latestBody, settings.lowEffortKeywords);
+      const missingFields = missingFieldsForScore(analysis.score, analysis.missingFields);
+
       await replyToConversation(
         existing.conversationId,
-        settings.followupTemplate.replace(
-          '{{missing_fields}}',
-          formatMissingFields(existing.missingFields)
-        )
+        applyMissingFieldsToTemplate(settings.followupTemplate, analysis.score, missingFields)
       );
 
       const updated: AppealCase = {
         ...existing,
         status: 'awaiting_user',
+        score: analysis.score,
+        missingFields,
+        summary: analysis.summary,
+        lastMessagePreview: previewText(latestBody || existing.lastMessagePreview),
         followupCount: existing.followupCount + 1,
         updatedAt: Date.now(),
       };
